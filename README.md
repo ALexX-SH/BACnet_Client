@@ -117,4 +117,4 @@ Logs are written to:
 
 ## License
 
-(Consider adding a license, e.g., MIT License) 
+MIT License 
