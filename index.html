@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BACnet Client</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        .value-panel {
+            background-color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .current-value {
+            font-size: 48px;
+            color: #3498db;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .negative-value {
+            color: #e74c3c; /* Красный цвет для отрицательных значений */
+        }
+        .original-value {
+            font-size: 24px;
+            color: #7f8c8d;
+            margin: 5px 0;
+        }
+        .calibration-note {
+            font-size: 14px;
+            color: #e67e22;
+            margin-top: 5px;
+            font-style: italic;
+        }
+        .info-row {
+            display: flex;
+            margin-bottom: 10px;
+        }
+        .info-label {
+            width: 140px;
+            font-weight: bold;
+            color: #7f8c8d;
+        }
+        .info-value {
+            flex: 1;
+            color: #2c3e50;
+            word-break: break-word;
+        }
+        .refresh-btn {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+        }
+        .refresh-btn:hover {
+            background-color: #2980b9;
+        }
+        .status-indicator {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 10px;
+        }
+        .status-ok {
+            background-color: #2ecc71;
+        }
+        .status-warning {
+            background-color: #f39c12;
+        }
+        .status-error {
+            background-color: #e74c3c;
+        }
+        .last-update {
+            font-style: italic;
+            color: #7f8c8d;
+            text-align: center;
+            margin-top: 5px;
+        }
+        #auto-refresh {
+            margin-right: 5px;
+        }
+        .info-container {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        
+        .error-panel {
+            background-color: #ffeeee;
+            border: 1px solid #e74c3c;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 20px;
+            text-align: left;
+        }
+        
+        .error-title {
+            font-weight: bold;
+            color: #e74c3c;
+            margin-bottom: 5px;
+        }
+        
+        .error-message {
+            color: #7f8c8d;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        
+        .value-toggle {
+            text-align: center;
+            margin: 10px 0;
+        }
+        
+        .value-toggle label {
+            margin-right: 10px;
+        }
+        
+        .calibration-note {
+            color: #e67e22;
+            font-style: italic;
+            text-align: center;
+            margin-top: 5px;
+            font-size: 13px;
+        }
+        
+        .interpretation-container {
+            background-color: #f0f7fb;
+            border-left: 4px solid #3498db;
+            padding: 10px;
+            margin-top: 15px;
+            border-radius: 0 5px 5px 0;
+            display: none;
+        }
+        
+        .detailed-view-toggle {
+            text-align: center;
+            margin: 15px 0;
+            cursor: pointer;
+            color: #3498db;
+            text-decoration: underline;
+        }
+        
+        .ieee754-values {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .ieee754-value {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 8px;
+            flex: 1;
+            min-width: 120px;
+            text-align: center;
+        }
+        
+        .ieee754-value.selected {
+            border-color: #2ecc71;
+            background-color: #eafaf1;
+        }
+        
+        /* Responsive design */
+        @media (max-width: 600px) {
+            .info-row {
+                flex-direction: column;
+            }
+            .info-label {
+                width: 100%;
+                margin-bottom: 4px;
+            }
+            .current-value {
+                font-size: 36px;
+            }
+            .ieee754-values {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>BACnet Client</h1>
+        
+        <div class="value-panel">
+            <div class="current-value" id="currentValue">--</div>
+            <div class="original-value" id="originalValue" style="display: none;">Original value: --</div>
+            <div class="calibration-note" id="valueNote" style="display: none;">Value interpretation might be adjusted due to endianness issue</div>
+            <div class="last-update" id="lastUpdate">Last update: --</div>
+        </div>
+        
+        <div class="info-container">
+            <div class="info-row">
+                <div class="info-label">Device ID:</div>
+                <div class="info-value" id="deviceId">--</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Analog Input:</div>
+                <div class="info-value" id="instanceId">--</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Object Name:</div>
+                <div class="info-value" id="objectName">--</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Description:</div>
+                <div class="info-value" id="description">--</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Server IP:</div>
+                <div class="info-value" id="serverIp">--</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Raw Value:</div>
+                <div class="info-value" id="rawValue">--</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Status:</div>
+                <div class="info-value">
+                    <span class="status-indicator" id="statusIndicator"></span>
+                    <span id="statusText">Waiting for data...</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="detailed-view-toggle" id="detailedViewToggle">
+            Show IEEE754 Interpretations
+        </div>
+        
+        <div class="interpretation-container" id="interpretationContainer">
+            <div class="info-row">
+                <div class="info-label">Format Used:</div>
+                <div class="info-value" id="formatUsed">--</div>
+            </div>
+            <div class="ieee754-values" id="ieee754Values">
+                <!-- IEEE754 values will be added via JavaScript -->
+            </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 20px;">
+            <label>
+                <input type="checkbox" id="auto-refresh" checked>
+                Auto-refresh (5 sec)
+            </label>
+            <button class="refresh-btn" onclick="fetchData()">Refresh Now</button>
+        </div>
+        
+        <div id="errorPanel" class="error-panel" style="display: none;">
+            <div class="error-title">Connection Error</div>
+            <div id="errorMessage" class="error-message"></div>
+        </div>
+    </div>
+
+    <script>
+        // Last update time
+        let lastUpdateTime = null;
+        // Auto-refresh interval in milliseconds
+        const refreshInterval = 5000; // 5 seconds interval
+        let refreshTimer = null;
+        // Last received data
+        let lastData = null;
+        
+        // Function to fetch data from server
+        function fetchData() {
+            // Show loading indicator
+            document.getElementById('statusIndicator').className = 'status-indicator status-warning';
+            document.getElementById('statusText').textContent = 'Loading...';
+            
+            // Hide error panel if visible
+            document.getElementById('errorPanel').style.display = 'none';
+            
+            fetch('/value')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Received data:', data);  // Debug log
+                    lastData = data;  // Store the data
+                    updateUI(data);
+                })
+                .catch(error => {
+                    console.error('Error getting data:', error);
+                    document.getElementById('statusIndicator').className = 'status-indicator status-error';
+                    document.getElementById('statusText').textContent = 'Connection error';
+                    
+                    // Show error panel with details
+                    document.getElementById('errorPanel').style.display = 'block';
+                    document.getElementById('errorMessage').textContent = error.message;
+                    
+                    // Clear values when connection fails
+                    document.getElementById('currentValue').textContent = '--';
+                    document.getElementById('lastUpdate').textContent = 'Last update: --';
+                });
+        }
+        
+        // Function to update UI
+        function updateUI(data) {
+            const currentValueElem = document.getElementById('currentValue');
+            const originalValueElem = document.getElementById('originalValue');
+            const valueNoteElem = document.getElementById('valueNote');
+            const lastUpdateElem = document.getElementById('lastUpdate');
+            const deviceIdElem = document.getElementById('deviceId');
+            const instanceIdElem = document.getElementById('instanceId');
+            const objectNameElem = document.getElementById('objectName');
+            const descriptionElem = document.getElementById('description');
+            const serverIpElem = document.getElementById('serverIp');
+            const rawValueElem = document.getElementById('rawValue');
+            const statusIndicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            const formatUsedElem = document.getElementById('formatUsed');
+            const ieee754ValuesElem = document.getElementById('ieee754Values');
+            
+            // Update value display
+            if (data.value !== null && data.value !== undefined) {
+                // Format with two decimal places
+                let displayValue = parseFloat(data.value).toFixed(2);
+                
+                // Add a special class for negative values
+                if (parseFloat(data.value) < 0) {
+                    currentValueElem.className = 'current-value negative-value';
+                } else {
+                    currentValueElem.className = 'current-value';
+                }
+                
+                currentValueElem.textContent = displayValue;
+                
+                // Check if we have an original value (meaning value was reinterpreted)
+                if (data.original_value !== undefined) {
+                    originalValueElem.style.display = 'block';
+                    originalValueElem.textContent = `Original value: ${parseFloat(data.original_value).toFixed(2)}`;
+                    valueNoteElem.style.display = 'block';
+                    
+                    // Display information about the format used
+                    if (data.value < 0) {
+                        formatUsedElem.textContent = "Negative value (most likely correct interpretation)";
+                    } else if (data.value !== data.original_value) {
+                        formatUsedElem.textContent = "Alternative IEEE754 format";
+                    } else {
+                        formatUsedElem.textContent = "Standard big-endian";
+                    }
+                    
+                    // If there is information about all possible interpretations
+                    if (data.all_interpretations) {
+                        updateIEEE754Values(data.all_interpretations, data.value);
+                    }
+                } else {
+                    originalValueElem.style.display = 'none';
+                    valueNoteElem.style.display = 'none';
+                }
+                
+                // Check status based on value
+                statusIndicator.className = 'status-indicator status-ok';
+                statusText.textContent = 'Valid value received';
+            } else {
+                currentValueElem.textContent = '--';
+                originalValueElem.style.display = 'none';
+                valueNoteElem.style.display = 'none';
+                statusIndicator.className = 'status-indicator status-error';
+                statusText.textContent = 'No data';
+            }
+            
+            // Update the rest of the information
+            lastUpdateElem.textContent = `Last update: ${data.timestamp || '--'}`;
+            
+            // Handle device_id consistently (server might return either device_id or deviceId)
+            deviceIdElem.textContent = data.device_id !== undefined ? data.device_id : 
+                                    (data.deviceId !== undefined ? data.deviceId : 
+                                    (data.config && data.config.device_id ? data.config.device_id : '--'));
+            
+            instanceIdElem.textContent = data.instance || data.config?.instance || '--';
+            objectNameElem.textContent = data.name || '--';
+            descriptionElem.textContent = data.description || '--';
+            
+            // Display raw value if available
+            rawValueElem.textContent = data.raw_value || '--';
+            
+            // Update server IP if available
+            if (data.config && data.config.target_ip) {
+                serverIpElem.textContent = data.config.target_ip;
+            } else if (data.server_ip) {
+                serverIpElem.textContent = data.server_ip;
+            } else {
+                serverIpElem.textContent = '--';
+            }
+            
+            // Update last update time
+            lastUpdateTime = new Date();
+        }
+        
+        // Function to update the block with IEEE754 interpretations
+        function updateIEEE754Values(interpretations, selectedValue) {
+            const ieee754ValuesElem = document.getElementById('ieee754Values');
+            
+            // Clear previous values
+            ieee754ValuesElem.innerHTML = '';
+            
+            // Add new values
+            if (Array.isArray(interpretations)) {
+                interpretations.forEach(interp => {
+                    const valueElem = document.createElement('div');
+                    valueElem.className = 'ieee754-value';
+                    if (interp.value === selectedValue) {
+                        valueElem.classList.add('selected');
+                    }
+                    
+                    valueElem.innerHTML = `
+                        <div>${interp.name || 'Unknown'}</div>
+                        <div>${parseFloat(interp.value).toFixed(2)}</div>
+                    `;
+                    
+                    ieee754ValuesElem.appendChild(valueElem);
+                });
+            } else {
+                // If interpretations is not an array, create elements from different data fields
+                // Use standard formats that we know from the Python code
+                const formats = [
+                    { name: 'Big Endian', value: lastData.original_value },
+                    { name: 'Little Endian', value: lastData.value }
+                ];
+                
+                formats.forEach(format => {
+                    if (format.value !== undefined) {
+                        const valueElem = document.createElement('div');
+                        valueElem.className = 'ieee754-value';
+                        if (format.value === lastData.value) {
+                            valueElem.classList.add('selected');
+                        }
+                        
+                        valueElem.innerHTML = `
+                            <div>${format.name}</div>
+                            <div>${parseFloat(format.value).toFixed(2)}</div>
+                        `;
+                        
+                        ieee754ValuesElem.appendChild(valueElem);
+                    }
+                });
+            }
+        }
+        
+        // Function to check data freshness
+        function checkDataFreshness() {
+            if (lastUpdateTime) {
+                const now = new Date();
+                const diffSeconds = Math.floor((now - lastUpdateTime) / 1000);
+                
+                // If data is older than 30 seconds, show warning
+                if (diffSeconds > 30) {
+                    document.getElementById('statusIndicator').className = 'status-indicator status-warning';
+                    document.getElementById('statusText').textContent = `Data is stale (${diffSeconds} sec ago)`;
+                }
+                
+                // If data is older than 2 minutes, show error
+                if (diffSeconds > 120) {
+                    document.getElementById('statusIndicator').className = 'status-indicator status-error';
+                    document.getElementById('statusText').textContent = `Data is very old (${Math.floor(diffSeconds/60)} min ago)`;
+                }
+            }
+        }
+        
+        // Toggle detailed view
+        document.getElementById('detailedViewToggle').addEventListener('click', function() {
+            const container = document.getElementById('interpretationContainer');
+            if (container.style.display === 'none' || !container.style.display) {
+                container.style.display = 'block';
+                this.textContent = 'Hide IEEE754 Interpretations';
+            } else {
+                container.style.display = 'none';
+                this.textContent = 'Show IEEE754 Interpretations';
+            }
+        });
+        
+        // Auto-refresh toggle handler
+        document.getElementById('auto-refresh').addEventListener('change', function(e) {
+            if (e.target.checked) {
+                startAutoRefresh();
+            } else {
+                stopAutoRefresh();
+            }
+        });
+        
+        // Start auto-refresh
+        function startAutoRefresh() {
+            fetchData(); // Initial load
+            refreshTimer = setInterval(() => {
+                fetchData();
+                checkDataFreshness();
+            }, refreshInterval);
+        }
+        
+        // Stop auto-refresh
+        function stopAutoRefresh() {
+            if (refreshTimer) {
+                clearInterval(refreshTimer);
+                refreshTimer = null;
+            }
+        }
+        
+        // Page initialization
+        document.addEventListener('DOMContentLoaded', function() {
+            if (document.getElementById('auto-refresh').checked) {
+                startAutoRefresh();
+            }
+        });
+    </script>
+</body>
+</html>
